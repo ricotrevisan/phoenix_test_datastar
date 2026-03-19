@@ -30,6 +30,7 @@ defmodule PhoenixTestDatastar.MixProject do
       {:plug, "~> 1.15"},
       {:jason, "~> 1.4"},
       {:floki, "~> 0.36"},
+      {:dstar, "~> 0.0.5", only: :test},
       {:ex_doc, "~> 0.30", only: :dev, runtime: false}
     ]
   end

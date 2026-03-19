@@ -197,9 +197,13 @@ defmodule PhoenixTestDatastar.Signals do
   defp extract_signals_from_attrs(attrs) do
     Enum.reduce(attrs, %{}, fn {name, value}, acc ->
       cond do
-        # Individual signal like data-signals:count="0"
+        # Individual signal like data-signals:count="0" or data-signals:_csrf-token="'abc'"
         String.starts_with?(name, "data-signals:") ->
-          key = String.replace_prefix(name, "data-signals:", "")
+          key =
+            name
+            |> String.replace_prefix("data-signals:", "")
+            |> kebab_to_camel()
+
           Map.put(acc, key, parse_js_value(value))
 
         # Object-style data-signals="{foo: 1, bar: 2}"
@@ -215,6 +219,52 @@ defmodule PhoenixTestDatastar.Signals do
           acc
       end
     end)
+  end
+
+  @doc """
+  Converts a kebab-case string to camelCase.
+
+  HTML attributes are case-insensitive, so Datastar uses kebab-case in
+  attribute suffixes (e.g., `data-signals:_csrf-token`) and converts to
+  camelCase signal names (`_csrfToken`) on the client.
+
+  Handles leading underscores (preserved) and already-camelCase input.
+
+  ## Examples
+
+      iex> PhoenixTestDatastar.Signals.kebab_to_camel("_csrf-token")
+      "_csrfToken"
+
+      iex> PhoenixTestDatastar.Signals.kebab_to_camel("my-signal-name")
+      "mySignalName"
+
+      iex> PhoenixTestDatastar.Signals.kebab_to_camel("count")
+      "count"
+
+      iex> PhoenixTestDatastar.Signals.kebab_to_camel("_dstar_module")
+      "_dstar_module"
+  """
+  @spec kebab_to_camel(String.t()) :: String.t()
+  def kebab_to_camel(str) do
+    # Preserve leading underscores
+    {prefix, rest} =
+      case str do
+        "_" <> remainder -> {"_", remainder}
+        other -> {"", other}
+      end
+
+    parts = String.split(rest, "-")
+
+    camel =
+      case parts do
+        [first | rest_parts] ->
+          first <> Enum.map_join(rest_parts, "", &String.capitalize/1)
+
+        [] ->
+          ""
+      end
+
+    prefix <> camel
   end
 
   defp replace_single_quotes(str) do

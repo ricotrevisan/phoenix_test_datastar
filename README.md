@@ -84,15 +84,30 @@ defmodule RociWeb.DatastarCase do
     )
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
 
-    {:ok, conn: PhoenixTestDatastar.build(RociWeb.Endpoint)}
+    conn =
+      Phoenix.ConnTest.build_conn()
+      |> PhoenixTest.put_endpoint(RociWeb.Endpoint)
+
+    {:ok, conn: conn}
   end
 end
 ```
 
-> **Note:** The entry point is `PhoenixTestDatastar.build(Endpoint)` instead of
-> `Phoenix.ConnTest.build_conn()`. This returns a session struct that routes
-> through the Datastar driver — the same pattern used by
-> [PhoenixTest.Playwright](https://hexdocs.pm/phoenix_test_playwright).
+Then in your tests, use `PhoenixTestDatastar.visit/2` as the entry point:
+
+```elixir
+test "my test", %{conn: conn} do
+  conn
+  |> PhoenixTestDatastar.visit("/some-page")
+  |> click_button("Do something")
+  |> assert_has("#result", text: "Done")
+end
+```
+
+> **Note:** Use `PhoenixTestDatastar.visit/2` instead of `PhoenixTest.visit/2`.
+> This returns a `PhoenixTestDatastar.Session` struct that routes through the
+> Datastar driver. All subsequent `click_button`, `fill_in`, `assert_has` etc.
+> calls work through PhoenixTest's standard API.
 
 ## Usage
 
@@ -160,14 +175,20 @@ conn
 
 ### Signal assertions
 
-PhoenixTestDatastar adds signal-aware assertions for testing reactive state:
+Import `PhoenixTestDatastar.Assertions` for signal-aware assertions:
 
 ```elixir
-conn
-|> visit("/rocinante/weapons")
-|> assert_signal("warheads", 5)
-|> click_button("Fire torpedo")
-|> assert_signal("warheads", 4)
+import PhoenixTestDatastar.Assertions
+
+test "torpedo launch decrements warhead count", %{conn: conn} do
+  conn
+  |> visit("/rocinante/weapons")
+  |> assert_signal("warheads", 5)
+  |> assert_signal_set("warheads")
+  |> refute_signal("nonexistent")
+  |> click_button("Fire torpedo")
+  |> assert_signal("warheads", 4)
+end
 ```
 
 ### Navigation and redirects
@@ -215,15 +236,56 @@ conn
 |> click_button("Fire torpedo")
 ```
 
+### Real-time SSE streams
+
+For handlers that enter long-lived receive loops (e.g., PubSub-driven updates),
+use the streaming API:
+
+```elixir
+alias PhoenixTestDatastar.Stream
+
+test "live dashboard updates on sensor change", %{conn: conn} do
+  session =
+    conn
+    |> visit("/rocinante/sensors")
+    |> Stream.open_stream("/ds/sensor_handler/listen")
+    |> Stream.await_events()
+
+  assert_signal(session, "contacts", 0)
+
+  # Simulate external event (e.g., PubSub broadcast)
+  Phoenix.PubSub.broadcast(Roci.PubSub, "sensors", {:contact_detected, 1})
+
+  session
+  |> Stream.await_events()
+  |> assert_signal("contacts", 1)
+  |> Stream.close_stream()
+end
+```
+
+### `data-init` auto-dispatching
+
+When visiting a page with `data-init` attributes, the driver automatically
+dispatches the init actions — just like the Datastar JS client would:
+
+```elixir
+# If the page has: <div data-init="@get('/ds/dashboard/load')">
+test "dashboard loads initial data on visit", %{conn: conn} do
+  conn
+  |> visit("/dashboard")           # data-init actions fire automatically
+  |> assert_has("#stats", text: "42")
+end
+```
+
 ### Escape hatch with `unwrap`
 
-Access the raw session data when you need it:
+Access the raw conn when you need it:
 
 ```elixir
 conn
 |> visit("/rocinante/weapons")
-|> unwrap(fn %{conn: conn, signals: signals} ->
-  assert signals["warheads"] == 5
+|> unwrap(fn conn ->
+  # do something with the raw conn
   conn
 end)
 ```
@@ -284,7 +346,23 @@ PhoenixTestDatastar implements the full `PhoenixTest.Driver` protocol:
 | `assert_path/2,3` | Check current path |
 | `refute_path/2,3` | Check current path |
 | `open_browser/1` | Open HTML in system browser |
-| `unwrap/2` | Access raw conn, signals, HTML |
+| `unwrap/2` | Access raw conn |
+| `reload_page/1` | Re-visit current path |
+
+### Datastar-specific API
+
+| Function | Description |
+|----------|-------------|
+| `PhoenixTestDatastar.visit/2` | Entry point — creates Datastar session |
+| `PhoenixTestDatastar.get_signal/2` | Read a signal value |
+| `PhoenixTestDatastar.get_signals/1` | Read all signals |
+| `PhoenixTestDatastar.put_signal/3` | Set a signal (for test setup) |
+| `PhoenixTestDatastar.Assertions.assert_signal/3` | Assert signal value |
+| `PhoenixTestDatastar.Assertions.assert_signal_set/2` | Assert signal exists |
+| `PhoenixTestDatastar.Assertions.refute_signal/2` | Assert signal absent |
+| `PhoenixTestDatastar.Stream.open_stream/2` | Open SSE stream connection |
+| `PhoenixTestDatastar.Stream.await_events/1` | Wait for and apply SSE events |
+| `PhoenixTestDatastar.Stream.close_stream/1` | Close SSE stream |
 
 ## Dependencies
 

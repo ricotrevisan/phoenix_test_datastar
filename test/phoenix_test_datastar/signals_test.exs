@@ -55,6 +55,26 @@ defmodule PhoenixTestDatastar.SignalsTest do
              }
     end
 
+    test "converts kebab-case attribute suffix to camelCase signal name" do
+      html = """
+      <div data-signals:_csrf-token="'abc123'" data-signals:my-signal-name="42"></div>
+      """
+
+      signals = Signals.extract_from_html(html)
+      assert signals["_csrfToken"] == "abc123"
+      assert signals["mySignalName"] == 42
+    end
+
+    test "preserves already camelCase names" do
+      html = """
+      <div data-signals:count="0" data-signals:username="'alice'"></div>
+      """
+
+      signals = Signals.extract_from_html(html)
+      assert signals["count"] == 0
+      assert signals["username"] == "alice"
+    end
+
     test "handles nested object signals" do
       html = """
       <div data-signals="{user: {name: 'Alice', age: 30}, count: 5}"></div>
