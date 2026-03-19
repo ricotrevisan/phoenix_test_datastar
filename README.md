@@ -12,11 +12,11 @@ Write feature tests using the same `visit`, `click_button`, `fill_in`, and
 parts: signals, SSE responses, and DOM patching.
 
 ```elixir
-test "counter increments", %{conn: conn} do
+test "torpedo launch increments warhead count", %{conn: conn} do
   conn
-  |> visit("/counter")
-  |> click_button("+1")
-  |> assert_has("#count", text: "1")
+  |> visit("/rocinante/weapons")
+  |> click_button("Fire torpedo")
+  |> assert_has("#warheads-remaining", text: "4")
 end
 ```
 
@@ -60,7 +60,7 @@ PhoenixTestDatastar uses the same endpoint config as PhoenixTest. In
 `config/test.exs`:
 
 ```elixir
-config :phoenix_test, :endpoint, MyAppWeb.Endpoint
+config :phoenix_test, :endpoint, RociWeb.Endpoint
 ```
 
 ### Setup
@@ -68,7 +68,7 @@ config :phoenix_test, :endpoint, MyAppWeb.Endpoint
 Create a `DatastarCase` helper in `test/support/datastar_case.ex`:
 
 ```elixir
-defmodule MyAppWeb.DatastarCase do
+defmodule RociWeb.DatastarCase do
   use ExUnit.CaseTemplate
 
   using do
@@ -80,11 +80,11 @@ defmodule MyAppWeb.DatastarCase do
 
   setup tags do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(
-      MyApp.Repo, shared: not tags[:async]
+      Roci.Repo, shared: not tags[:async]
     )
     on_exit(fn -> Ecto.Adapters.SQL.Sandbox.stop_owner(pid) end)
 
-    {:ok, conn: PhoenixTestDatastar.build(MyAppWeb.Endpoint)}
+    {:ok, conn: PhoenixTestDatastar.build(RociWeb.Endpoint)}
   end
 end
 ```
@@ -102,21 +102,21 @@ Datastar buttons use `data-on:click="@post(...)"` instead of form submissions.
 PhoenixTestDatastar detects these automatically:
 
 ```elixir
-test "counter increments and decrements", %{conn: conn} do
+test "adjust reactor output", %{conn: conn} do
   conn
-  |> visit("/counter")
-  |> click_button("+1")
-  |> click_button("+1")
-  |> assert_has("#count", text: "2")
-  |> click_button("−1")
-  |> assert_has("#count", text: "1")
+  |> visit("/rocinante/engineering")
+  |> click_button("Increase thrust")
+  |> click_button("Increase thrust")
+  |> assert_has("#reactor-output", text: "75%")
+  |> click_button("Decrease thrust")
+  |> assert_has("#reactor-output", text: "50%")
 end
 ```
 
 When you call `click_button`, the driver:
 
 1. Finds the button in the DOM
-2. Reads its `data-on:click` attribute (e.g., `@post('/ds/counter_events/increment')`)
+2. Reads its `data-on:click` attribute (e.g., `@post('/ds/engineering_events/increase_thrust')`)
 3. Builds a POST request with the current signals as JSON body
 4. Dispatches through your endpoint
 5. Parses the SSE response (`patch-signals`, `patch-elements`)
@@ -131,13 +131,13 @@ Datastar inputs use `data-bind` to bind to signals. PhoenixTestDatastar handles
 both signal-bound and traditional form inputs:
 
 ```elixir
-test "search filters results", %{conn: conn} do
+test "search filters crew roster", %{conn: conn} do
   conn
-  |> visit("/users")
-  |> fill_in("Search", with: "Aragorn")
+  |> visit("/rocinante/crew")
+  |> fill_in("Search", with: "Holden")
   |> click_button("Filter")
-  |> assert_has(".user", text: "Aragorn")
-  |> refute_has(".user", text: "Gandalf")
+  |> assert_has(".crew-member", text: "James Holden")
+  |> refute_has(".crew-member", text: "Amos Burton")
 end
 ```
 
@@ -151,11 +151,11 @@ All standard PhoenixTest assertions work:
 
 ```elixir
 conn
-|> visit("/dashboard")
-|> assert_has("h1", text: "Dashboard")
-|> assert_has("#user-count", text: "42")
-|> refute_has(".error")
-|> assert_path("/dashboard")
+|> visit("/ops/dashboard")
+|> assert_has("h1", text: "OPS Dashboard")
+|> assert_has("#crew-count", text: "4")
+|> refute_has(".hull-breach")
+|> assert_path("/ops/dashboard")
 ```
 
 ### Signal assertions
@@ -164,10 +164,10 @@ PhoenixTestDatastar adds signal-aware assertions for testing reactive state:
 
 ```elixir
 conn
-|> visit("/counter")
-|> assert_signal("count", 0)
-|> click_button("+1")
-|> assert_signal("count", 1)
+|> visit("/rocinante/weapons")
+|> assert_signal("warheads", 5)
+|> click_button("Fire torpedo")
+|> assert_signal("warheads", 4)
 ```
 
 ### Navigation and redirects
@@ -176,14 +176,14 @@ Dstar redirects work via `Dstar.redirect/2`, which sends a script that sets
 `window.location.href`. The driver detects these and follows the redirect:
 
 ```elixir
-test "login redirects to dashboard", %{conn: conn} do
+test "login redirects to bridge", %{conn: conn} do
   conn
   |> visit("/login")
-  |> fill_in("Email", with: "aragorn@gondor.com")
-  |> fill_in("Password", with: "anduril")
-  |> click_button("Sign in")
-  |> assert_path("/dashboard")
-  |> assert_has("h1", text: "Welcome back")
+  |> fill_in("Callsign", with: "holden@rocinante.belt")
+  |> fill_in("Access code", with: "donnager-7")
+  |> click_button("Authenticate")
+  |> assert_path("/bridge")
+  |> assert_has("h1", text: "Welcome aboard, Captain")
 end
 ```
 
@@ -192,14 +192,14 @@ end
 When a page has multiple forms or repeated elements, scope your interactions:
 
 ```elixir
-test "edit specific todo", %{conn: conn} do
+test "repair specific ship system", %{conn: conn} do
   conn
-  |> visit("/todos")
-  |> within("#todo-1", fn session ->
+  |> visit("/rocinante/damage-report")
+  |> within("#system-pdc-array", fn session ->
     session
-    |> click_button("Complete")
+    |> click_button("Repair")
   end)
-  |> assert_has("#todo-1.completed")
+  |> assert_has("#system-pdc-array.operational")
 end
 ```
 
@@ -209,10 +209,10 @@ Inspect the current DOM state in your browser:
 
 ```elixir
 conn
-|> visit("/counter")
-|> click_button("+1")
+|> visit("/rocinante/weapons")
+|> click_button("Fire torpedo")
 |> open_browser()  # opens the current HTML in your default browser
-|> click_button("+1")
+|> click_button("Fire torpedo")
 ```
 
 ### Escape hatch with `unwrap`
@@ -221,9 +221,9 @@ Access the raw session data when you need it:
 
 ```elixir
 conn
-|> visit("/counter")
+|> visit("/rocinante/weapons")
 |> unwrap(fn %{conn: conn, signals: signals} ->
-  assert signals["count"] == 0
+  assert signals["warheads"] == 5
   conn
 end)
 ```
@@ -231,16 +231,16 @@ end)
 ## How it works
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                   Test Code                         │
-│  conn |> visit("/counter") |> click_button("+1")   │
-│       |> assert_has("#count", text: "1")            │
-└────────────────────┬────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                        Test Code                                 │
+│  conn |> visit("/rocinante/weapons") |> click_button("Fire")    │
+│       |> assert_has("#warheads-remaining", text: "4")            │
+└────────────────────┬─────────────────────────────────────────────┘
                      │ PhoenixTest.Driver protocol
     ┌────────────────▼────────────────┐
     │   PhoenixTestDatastar.Session   │
     │                                 │
-    │  • Signal Store (%{count: 0})   │
+    │  • Signal Store (%{warheads: 5}) │
     │  • DOM (in-memory HTML)         │
     │  • SSE Parser                   │
     │  • Action Dispatcher            │
@@ -253,13 +253,15 @@ end)
 ```
 
 On `visit/2`, the driver makes a standard GET request, extracts signals from
-`data-signals` attributes, and stores the HTML.
+`data-signals` attributes, and stores the HTML — like pulling up the Roci's
+tactical display.
 
 On `click_button/2`, it finds the Datastar action expression, POSTs the current
 signals as JSON, parses the SSE response, and applies `patch-signals` and
-`patch-elements` events to update state.
+`patch-elements` events to update state — like the CIC processing a fire
+command.
 
-Assertions query the in-memory DOM — no network requests needed.
+Assertions query the in-memory DOM — no network round-trip needed.
 
 ## Supported PhoenixTest API
 
