@@ -20,6 +20,32 @@ test "torpedo launch increments warhead count", %{conn: conn} do
 end
 ```
 
+Test real-time SSE streams too — open a long-lived connection, trigger server
+events, and assert on the updates as they arrive:
+
+```elixir
+alias PhoenixTestDatastar.Stream
+
+test "sensor dashboard updates on new contact", %{conn: conn} do
+  session =
+    conn
+    |> visit("/rocinante/sensors")
+    |> Stream.open_stream("/ds/sensor_handler/listen")
+    |> Stream.await_events()
+
+  assert_signal(session, "contacts", 0)
+
+  # Simulate a server-side event
+  Phoenix.PubSub.broadcast(Roci.PubSub, "sensors", {:contact_detected, 1})
+
+  session
+  |> Stream.await_events()
+  |> assert_signal("contacts", 1)
+  |> assert_has("#contact-count", text: "1")
+  |> Stream.close_stream()
+end
+```
+
 No browser. No JavaScript runtime. Just ExUnit.
 
 ## Why?
