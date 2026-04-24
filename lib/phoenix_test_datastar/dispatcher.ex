@@ -9,7 +9,7 @@ defmodule PhoenixTestDatastar.Dispatcher do
 
   import Phoenix.ConnTest, only: [dispatch: 5, recycle: 1]
 
-  alias PhoenixTest.Dstar.SSE
+  alias PhoenixTestDatastar.SSE
   alias PhoenixTest.EndpointHelpers
   alias PhoenixTestDatastar.Actions
   alias PhoenixTestDatastar.DOM
@@ -79,7 +79,8 @@ defmodule PhoenixTestDatastar.Dispatcher do
     {path, nil, conn}
   end
 
-  defp build_request(session, method, url, _action) when method in [:post, :put, :patch, :delete] do
+  defp build_request(session, method, url, _action)
+       when method in [:post, :put, :patch, :delete] do
     body = Signals.to_post_body(session.signals)
 
     conn =
@@ -93,7 +94,8 @@ defmodule PhoenixTestDatastar.Dispatcher do
   end
 
   # Process the response based on content type and status
-  defp process_response(session, %{status: status} = conn) when status in [301, 302, 303, 307, 308] do
+  defp process_response(session, %{status: status} = conn)
+       when status in [301, 302, 303, 307, 308] do
     path = Phoenix.ConnTest.redirected_to(conn, status)
     follow_redirect(%{session | conn: conn}, path)
   end
@@ -115,12 +117,13 @@ defmodule PhoenixTestDatastar.Dispatcher do
         csrf = Map.get(signals, "_csrfToken", session.csrf_token)
         current_path = build_current_path(conn)
 
-        %{session |
-          conn: conn,
-          raw_html: raw_html,
-          current_path: current_path,
-          signals: signals,
-          csrf_token: csrf
+        %{
+          session
+          | conn: conn,
+            raw_html: raw_html,
+            current_path: current_path,
+            signals: signals,
+            csrf_token: csrf
         }
     end
   end
@@ -136,14 +139,19 @@ defmodule PhoenixTestDatastar.Dispatcher do
   end
 
   # Apply a patch_signals event
-  defp apply_event(session, %{type: :patch_signals, signals: new_signals, only_if_missing: only_if_missing}) do
+  defp apply_event(session, %{
+         type: :patch_signals,
+         signals: new_signals,
+         only_if_missing: only_if_missing
+       }) do
     signals = Signals.apply_patch(session.signals, new_signals, only_if_missing: only_if_missing)
     csrf = Map.get(signals, "_csrfToken", session.csrf_token)
     %{session | signals: signals, csrf_token: csrf}
   end
 
   # Apply a patch_elements event
-  defp apply_event(session, %{type: :patch_elements, elements: elements} = event) when is_binary(elements) do
+  defp apply_event(session, %{type: :patch_elements, elements: elements} = event)
+       when is_binary(elements) do
     cond do
       script_redirect?(elements) ->
         url = extract_redirect_url(elements)
@@ -166,22 +174,26 @@ defmodule PhoenixTestDatastar.Dispatcher do
     session
   end
 
-  # Detect redirect scripts: <script...>setTimeout(function(){window.location.href="..."}, 0)</script>
+  # Detect redirect scripts: window.location.href="..." or window.location='...'
   defp script_redirect?(html) do
-    String.contains?(html, "window.location.href")
+    String.contains?(html, "window.location.href") or
+      html =~ ~r/window\.location\s*=\s*['"]/
   end
 
   defp extract_redirect_url(html) do
-    case Regex.run(~r/window\.location\.href\s*=\s*(?:"([^"]+)"|'([^']+)')/, html) do
-      [_, url, ""] -> url
-      [_, "", url] -> url
-      [_, url] -> url
+    # Match window.location.href= or window.location= with single or double quotes
+    case Regex.run(~r/window\.location(?:\.href)?\s*=\s*(?:"([^"]+)"|'([^']+)')/, html) do
+      [_, url, ""] ->
+        url
+
+      [_, "", url] ->
+        url
+
+      [_, url] ->
+        url
+
       _ ->
-        # Try JSON-encoded URL
-        case Regex.run(~r/window\.location\.href\s*=\s*("[^"]+")/, html) do
-          [_, json_url] -> Jason.decode!(json_url)
-          _ -> "/"
-        end
+        "/"
     end
   end
 
@@ -199,6 +211,7 @@ defmodule PhoenixTestDatastar.Dispatcher do
   end
 
   defp maybe_put_csrf_header(conn, nil), do: conn
+
   defp maybe_put_csrf_header(conn, token) do
     Plug.Conn.put_req_header(conn, "x-csrf-token", token)
   end

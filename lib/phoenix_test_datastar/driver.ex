@@ -40,19 +40,24 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
     csrf = Map.get(signals, "_csrfToken")
     current_path = build_current_path(conn)
 
-    session = %{session |
-      conn: conn,
-      raw_html: raw_html,
-      current_path: current_path,
-      signals: signals,
-      csrf_token: csrf,
-      active_form: ActiveForm.new(),
-      within: :none,
-      current_operation: nil
+    session = %{
+      session
+      | conn: conn,
+        raw_html: raw_html,
+        current_path: current_path,
+        signals: signals,
+        csrf_token: csrf,
+        active_form: ActiveForm.new(),
+        within: :none,
+        current_operation: nil
     }
 
     # Auto-dispatch data-init actions
-    dispatch_init_actions(session)
+    if Keyword.get(session.visit_opts, :init, true) do
+      dispatch_init_actions(session)
+    else
+      session
+    end
   end
 
   # ── render ─────────────────────────────────────────────────────────────
@@ -149,7 +154,7 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
               |> Form.put_button_data(button)
 
             # Check for Datastar action on the form (data-on:submit)
-            case find_datastar_action_for_form(session.raw_html, form.selector) do
+            case find_datastar_submit_action_on_form(form) do
               {:ok, action_expr} ->
                 session = %{session | active_form: ActiveForm.new()}
                 dispatch_datastar_action(session, action_expr)
@@ -165,8 +170,8 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
             end
           else
             raise ArgumentError,
-              "Could not find a form for the button. " <>
-              "The button must have a data-on:click attribute or belong to a form."
+                  "Could not find a form for the button. " <>
+                    "The button must have a data-on:click attribute or belong to a form."
           end
         end
     end
@@ -216,11 +221,13 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
       {:ok, signal_name} ->
         value = select_field.value
         # For select, value is a list; take first for single select
-        signal_value = case value do
-          [v] -> v
-          values when is_list(values) -> values
-          v -> v
-        end
+        signal_value =
+          case value do
+            [v] -> v
+            values when is_list(values) -> values
+            v -> v
+          end
+
         signals = Map.put(session.signals, signal_name, signal_value)
         %{session | signals: signals}
 
@@ -301,7 +308,10 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
     form = Field.parent_form!(field, html)
 
     mime_type = MIME.from_path(path)
-    upload_data = {field.name, %Plug.Upload{content_type: mime_type, filename: Path.basename(path), path: path}}
+
+    upload_data =
+      {field.name,
+       %Plug.Upload{content_type: mime_type, filename: Path.basename(path), path: path}}
 
     Map.update!(session, :active_form, fn active_form ->
       if active_form.selector == form.selector do
@@ -321,7 +331,7 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
 
     unless ActiveForm.active?(active_form) do
       raise ArgumentError,
-        "There's no active form. Fill in a form with `fill_in`, `select`, etc."
+            "There's no active form. Fill in a form with `fill_in`, `select`, etc."
     end
 
     selector = active_form.selector
@@ -336,7 +346,7 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
       end)
 
     # Check for Datastar action on the form
-    case find_datastar_action_for_form(session.raw_html, selector) do
+    case find_datastar_submit_action_on_form(form) do
       {:ok, action_expr} ->
         session = %{session | active_form: ActiveForm.new()}
         dispatch_datastar_action(session, action_expr)
@@ -369,7 +379,9 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
     html =
       session.raw_html
       |> Html.parse_document()
-      |> Html.postwalk(&OpenBrowser.prefix_static_paths(&1, EndpointHelpers.endpoint_from!(session.conn)))
+      |> Html.postwalk(
+        &OpenBrowser.prefix_static_paths(&1, EndpointHelpers.endpoint_from!(session.conn))
+      )
       |> Html.raw()
 
     File.write!(path, html)
@@ -420,17 +432,8 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
   end
 
   defp find_datastar_action_on_element(raw_html, parsed_element) do
-    # Get the element's attributes and look for data-on:click
-    action_attrs = ["data-on:click", "data-on:submit", "data-on:change"]
-
-    result =
-      Enum.find_value(action_attrs, fn attr ->
-        case Html.attribute(parsed_element, attr) do
-          nil -> nil
-          "" -> nil
-          value -> value
-        end
-      end)
+    # Look for data-on:click, data-on:submit, data-on:change (with optional __modifiers)
+    result = find_datastar_attr_on_element(parsed_element, ["click", "submit", "change"])
 
     # If not found on the element directly, try to find via raw HTML + selector
     case result do
@@ -443,27 +446,71 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
     end
   end
 
+  # Finds a data-on:<event> attribute (with optional __modifiers like __prevent, __debounce)
+  defp find_datastar_attr_on_element(parsed_element, event_names) do
+    Enum.find_value(event_names, fn event ->
+      # Try exact match first, then with __modifiers
+      Html.attribute(parsed_element, "data-on:#{event}") ||
+        find_datastar_attr_with_modifiers(parsed_element, event)
+    end)
+  end
+
+  # Checks for data-on:<event>__<modifier> attributes (e.g. data-on:click__prevent)
+  defp find_datastar_attr_with_modifiers(parsed_element, event) do
+    attrs =
+      case parsed_element do
+        {_tag, attr_list, _children} -> attr_list
+        [{_tag, attr_list, _children}] -> attr_list
+        _ -> []
+      end
+
+    prefix = "data-on:#{event}__"
+
+    Enum.find_value(attrs, fn
+      {attr_name, value} ->
+        if String.starts_with?(attr_name, prefix) do
+          if value != "", do: value, else: nil
+        end
+
+      _ ->
+        nil
+    end)
+  end
+
   defp find_action_via_raw_html(raw_html, parsed_element) do
     # Build a selector from the element's id if available
     case Html.attribute(parsed_element, "id") do
-      nil -> :none
+      nil ->
+        :none
+
       id ->
         selector = "##{id}"
         Actions.find_action(raw_html, selector)
     end
   end
 
-  defp find_datastar_action_for_form(raw_html, selector) do
-    # Look for data-on:submit on the form element
-    doc = Floki.parse_document!(raw_html)
-    elements = Floki.find(doc, selector)
+  # Extracts a data-on:submit action from the form's parsed element directly,
+  # avoiding CSS selector issues with complex attribute values.
+  defp find_datastar_submit_action_on_form(form) do
+    form_html = Html.raw(form.parsed)
+    {:ok, doc} = Floki.parse_fragment(form_html)
 
     result =
-      Enum.find_value(elements, fn element ->
-        case Floki.attribute(element, "data-on:submit") do
-          [value | _] when value != "" -> value
-          _ -> nil
-        end
+      Enum.find_value(doc, fn
+        {_tag, attrs, _children} ->
+          Enum.find_value(attrs, fn
+            {attr_name, value} ->
+              if (attr_name == "data-on:submit" or
+                    String.starts_with?(attr_name, "data-on:submit__")) and value != "" do
+                value
+              end
+
+            _ ->
+              nil
+          end)
+
+        _ ->
+          nil
       end)
 
     case result do

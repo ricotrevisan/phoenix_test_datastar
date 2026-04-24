@@ -2,7 +2,7 @@
 
 [![Module Version](https://img.shields.io/hexpm/v/phoenix_test_datastar.svg)](https://hex.pm/packages/phoenix_test_datastar/)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/phoenix_test_datastar/)
-[![License](https://img.shields.io/hexpm/l/phoenix_test_datastar.svg)](https://github.com/TODO/phoenix_test_datastar/blob/main/LICENSE)
+[![License](https://img.shields.io/hexpm/l/phoenix_test_datastar.svg)](https://hex.pm/packages/phoenix_test_datastar)
 
 A [PhoenixTest](https://hexdocs.pm/phoenix_test) driver for
 [Dstar](https://hexdocs.pm/dstar)-powered Phoenix applications.
@@ -75,7 +75,7 @@ Add `phoenix_test_datastar` to your test dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:phoenix_test_datastar, "~> 0.1.0", only: :test, runtime: false}
+    {:phoenix_test_datastar, "~> 0.0.1", only: :test, runtime: false}
   ]
 end
 ```

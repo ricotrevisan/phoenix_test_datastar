@@ -15,7 +15,7 @@ defmodule PhoenixTestDatastar.Stream do
       |> PhoenixTestDatastar.Stream.close_stream()
   """
 
-  alias PhoenixTest.Dstar.SSE
+  alias PhoenixTestDatastar.SSE
   alias PhoenixTestDatastar.Dispatcher
   alias PhoenixTestDatastar.Session
   alias PhoenixTestDatastar.Signals
@@ -66,8 +66,12 @@ defmodule PhoenixTestDatastar.Stream do
     # Wait for the stream to start
     receive do
       {:stream_started, ^ref, _status, _headers} ->
-        %{session | conn: Map.put(session.conn.private, :stream_task, task)
-                         |> then(&%{session.conn | private: &1})}
+        %{
+          session
+          | conn:
+              Map.put(session.conn.private, :stream_task, task)
+              |> then(&%{session.conn | private: &1})
+        }
         |> put_stream_info(task, ref)
 
       {:stream_resp, ^ref, _status, _headers, _body} ->
@@ -189,7 +193,10 @@ defmodule PhoenixTestDatastar.Stream do
       request_path: request_path,
       scheme: :http
     }
-    |> Plug.Conn.put_private(:phoenix_endpoint, PhoenixTest.EndpointHelpers.endpoint_from!(session.conn))
+    |> Plug.Conn.put_private(
+      :phoenix_endpoint,
+      PhoenixTest.EndpointHelpers.endpoint_from!(session.conn)
+    )
     |> Plug.Conn.put_private(:phoenix_router, session.conn.private[:phoenix_router])
   end
 
@@ -213,7 +220,21 @@ defmodule PhoenixTestDatastar.Stream do
         headers
       end
 
-    headers
+    # Carry over cookies from the session conn (for auth, CSRF, etc.)
+    cookie_headers = resp_cookies_to_req_headers(session.conn)
+    cookie_headers ++ headers
+  end
+
+  defp resp_cookies_to_req_headers(conn) do
+    cookies =
+      for {"set-cookie", header} <- conn.resp_headers,
+          [cookie | _] = String.split(header, ";"),
+          do: cookie
+
+    case cookies do
+      [] -> []
+      _ -> [{"cookie", Enum.join(cookies, "; ")}]
+    end
   end
 
   defp collect_chunks(ref, timeout, count, acc) do
@@ -239,14 +260,12 @@ defmodule PhoenixTestDatastar.Stream do
     end
   end
 
-  # Stream info is stored in conn.private under :stream_info
   defp put_stream_info(session, task, ref) do
-    conn = Plug.Conn.put_private(session.conn, :stream_info, {task, ref})
-    %{session | conn: conn}
+    %{session | stream_info: {task, ref}}
   end
 
-  defp get_stream_info(%Session{conn: conn}) do
-    conn.private[:stream_info]
+  defp get_stream_info(%Session{stream_info: info}) do
+    info
   end
 
   defp get_stream_info!(%Session{} = session) do
@@ -260,7 +279,6 @@ defmodule PhoenixTestDatastar.Stream do
   end
 
   defp clear_stream_info(session) do
-    private = Map.delete(session.conn.private, :stream_info)
-    %{session | conn: %{session.conn | private: private}}
+    %{session | stream_info: nil}
   end
 end

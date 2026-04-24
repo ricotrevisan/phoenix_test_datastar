@@ -133,6 +133,7 @@ defmodule PhoenixTestDatastar.SignalsTest do
     test "parses objects with unquoted keys" do
       assert Signals.parse_js_value("{foo: 1}") == %{"foo" => 1}
       assert Signals.parse_js_value("{foo: 1, bar: 2}") == %{"foo" => 1, "bar" => 2}
+
       assert Signals.parse_js_value("{name: 'Alice', age: 30}") == %{
                "name" => "Alice",
                "age" => 30
@@ -144,6 +145,14 @@ defmodule PhoenixTestDatastar.SignalsTest do
                "user" => %{"name" => "Bob"},
                "count" => 5
              }
+    end
+
+    test "complex JS expressions returned as-is" do
+      assert Signals.parse_js_value("new Date().toLocaleDateString('sv-SE')") ==
+               "new Date().toLocaleDateString('sv-SE')"
+
+      assert Signals.parse_js_value("new Date().toTimeString().slice(0,5)") ==
+               "new Date().toTimeString().slice(0,5)"
     end
   end
 

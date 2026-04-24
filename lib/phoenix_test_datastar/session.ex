@@ -16,6 +16,8 @@ defmodule PhoenixTestDatastar.Session do
     :csrf_token,
     active_form: ActiveForm.new(),
     within: :none,
-    current_operation: nil
+    current_operation: nil,
+    visit_opts: [],
+    stream_info: nil
   ]
 end

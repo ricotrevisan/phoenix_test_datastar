@@ -162,15 +162,21 @@ defmodule PhoenixTestDatastar.Actions do
     doc = Floki.parse_document!(raw_html)
     elements = Floki.find(doc, selector)
 
-    action_attrs = ["data-on:click", "data-on:submit", "data-on:change"]
+    action_prefixes = ["data-on:click", "data-on:submit", "data-on:change"]
 
     result =
-      Enum.find_value(elements, fn element ->
-        Enum.find_value(action_attrs, fn attr ->
-          case Floki.attribute(element, attr) do
-            [value | _] when value != "" -> value
-            _ -> nil
-          end
+      Enum.find_value(elements, fn {_tag, attrs, _children} ->
+        Enum.find_value(action_prefixes, fn prefix ->
+          Enum.find_value(attrs, fn
+            {attr_name, value} ->
+              if (attr_name == prefix or String.starts_with?(attr_name, prefix <> "__")) and
+                   value != "" do
+                value
+              end
+
+            _ ->
+              nil
+          end)
         end)
       end)
 

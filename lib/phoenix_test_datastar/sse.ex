@@ -1,4 +1,4 @@
-defmodule PhoenixTest.Dstar.SSE do
+defmodule PhoenixTestDatastar.SSE do
   @moduledoc """
   Parses Datastar SSE (Server-Sent Events) response bodies into structured events.
 

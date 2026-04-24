@@ -4,11 +4,13 @@ defmodule PhoenixTestDatastar.MixProject do
   def project do
     [
       app: :phoenix_test_datastar,
-      version: "0.1.0",
+      version: "0.0.1",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      package: package(),
+      docs: [main: "PhoenixTestDatastar", extras: ["README.md"]],
       name: "PhoenixTestDatastar",
       description: "A PhoenixTest driver for Dstar-powered Phoenix applications"
     ]
@@ -22,6 +24,14 @@ defmodule PhoenixTestDatastar.MixProject do
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
+
+  defp package do
+    [
+      licenses: ["MIT"],
+      links: %{"Hex" => "https://hex.pm/packages/phoenix_test_datastar"},
+      files: ~w(lib mix.exs README.md LICENSE)
+    ]
+  end
 
   defp deps do
     [

@@ -55,10 +55,15 @@ defmodule PhoenixTestDatastar.Signals do
   """
   @spec parse_js_value(String.t()) :: term()
   def parse_js_value(value) do
-    value
-    |> String.trim()
-    |> normalize_to_json()
-    |> Jason.decode!()
+    normalized =
+      value
+      |> String.trim()
+      |> normalize_to_json()
+
+    case Jason.decode(normalized) do
+      {:ok, decoded} -> decoded
+      {:error, _} -> value
+    end
   end
 
   @doc """
@@ -198,17 +203,22 @@ defmodule PhoenixTestDatastar.Signals do
     Enum.reduce(attrs, %{}, fn {name, value}, acc ->
       cond do
         # Individual signal like data-signals:count="0" or data-signals:_csrf-token="'abc'"
+        # May include modifiers like __ifmissing, e.g. data-signals:name__ifmissing="''"
         String.starts_with?(name, "data-signals:") ->
-          key =
-            name
-            |> String.replace_prefix("data-signals:", "")
-            |> kebab_to_camel()
+          raw_key = String.replace_prefix(name, "data-signals:", "")
+          {key, modifiers} = parse_signal_modifiers(raw_key)
+          key = kebab_to_camel(key)
 
-          Map.put(acc, key, parse_js_value(value))
+          if :ifmissing in modifiers and Map.has_key?(acc, key) do
+            acc
+          else
+            Map.put(acc, key, parse_js_value(value))
+          end
 
         # Object-style data-signals="{foo: 1, bar: 2}"
         name == "data-signals" ->
           parsed = parse_js_value(value)
+
           if is_map(parsed) do
             Map.merge(acc, parsed)
           else
@@ -221,12 +231,36 @@ defmodule PhoenixTestDatastar.Signals do
     end)
   end
 
+  # Splits a signal key from its double-underscore modifiers.
+  # e.g. "new_action_title__ifmissing" -> {"new_action_title", [:ifmissing]}
+  #      "count" -> {"count", []}
+  defp parse_signal_modifiers(raw_key) do
+    # Datastar modifiers are appended with __ (double underscore).
+    # Signal names may contain single underscores (e.g. new_action_title).
+    # We split on __ and treat everything after the first __ as modifiers.
+    case String.split(raw_key, "__", parts: 2) do
+      [key, modifiers_str] ->
+        modifiers =
+          modifiers_str
+          |> String.split("__")
+          |> Enum.map(&String.to_atom/1)
+
+        {key, modifiers}
+
+      [key] ->
+        {key, []}
+    end
+  end
+
   @doc """
   Converts a kebab-case string to camelCase.
 
   HTML attributes are case-insensitive, so Datastar uses kebab-case in
   attribute suffixes (e.g., `data-signals:_csrf-token`) and converts to
   camelCase signal names (`_csrfToken`) on the client.
+
+  Only converts dashes followed by a letter (actual kebab-case). Dashes
+  between hex digits (e.g., UUIDs) are preserved.
 
   Handles leading underscores (preserved) and already-camelCase input.
 
@@ -243,6 +277,9 @@ defmodule PhoenixTestDatastar.Signals do
 
       iex> PhoenixTestDatastar.Signals.kebab_to_camel("_dstar_module")
       "_dstar_module"
+
+      iex> PhoenixTestDatastar.Signals.kebab_to_camel("item_da576dd7-7f1f-4917-8dfa-05fe84a95779")
+      "item_da576dd7-7f1f-4917-8dfa-05fe84a95779"
   """
   @spec kebab_to_camel(String.t()) :: String.t()
   def kebab_to_camel(str) do
@@ -253,15 +290,22 @@ defmodule PhoenixTestDatastar.Signals do
         other -> {"", other}
       end
 
-    parts = String.split(rest, "-")
-
+    # Only apply kebab-to-camel conversion when the string is pure kebab-case
+    # (only lowercase letters and dashes). Signal names containing digits or
+    # underscores (e.g., snake_case with embedded UUIDs) are returned as-is.
     camel =
-      case parts do
-        [first | rest_parts] ->
-          first <> Enum.map_join(rest_parts, "", &String.capitalize/1)
+      if rest =~ ~r/^[a-z]+(-[a-z]+)+$/ do
+        parts = String.split(rest, "-")
 
-        [] ->
-          ""
+        case parts do
+          [first | rest_parts] ->
+            first <> Enum.map_join(rest_parts, "", &String.capitalize/1)
+
+          [] ->
+            ""
+        end
+      else
+        rest
       end
 
     prefix <> camel

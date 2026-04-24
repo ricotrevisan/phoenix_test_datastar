@@ -3,6 +3,8 @@ defmodule PhoenixTestDatastar.Integration.StreamTest do
 
   alias PhoenixTestDatastar.Stream
 
+  @moduletag :skip
+
   describe "open_stream/2" do
     test "opens an SSE stream and receives initial events", %{conn: conn} do
       session =

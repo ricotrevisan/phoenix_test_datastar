@@ -37,8 +37,8 @@ defmodule PhoenixTestDatastar do
   given path, extracts signals from the HTML, and returns a session that
   can be used with standard PhoenixTest functions.
   """
-  def visit(conn, path) do
-    session = build(conn)
+  def visit(conn, path, opts \\ []) do
+    session = build(conn, opts)
     PhoenixTest.Driver.visit(session, path)
   end
 
@@ -48,13 +48,14 @@ defmodule PhoenixTestDatastar do
   This creates the initial session struct. You typically don't need to call
   this directly - use `visit/2` instead.
   """
-  def build(conn) do
+  def build(conn, opts \\ []) do
     %Session{
       conn: conn,
       raw_html: "",
       current_path: "/",
       signals: %{},
-      csrf_token: nil
+      csrf_token: nil,
+      visit_opts: opts
     }
   end
 

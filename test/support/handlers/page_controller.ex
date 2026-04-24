@@ -2,7 +2,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
   @moduledoc false
   use Phoenix.Controller, formats: [:html]
 
-  plug :put_layout, false
+  plug(:put_layout, false)
 
   def counter(conn, _params) do
     html(conn, """

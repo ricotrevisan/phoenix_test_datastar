@@ -1,7 +1,7 @@
-defmodule PhoenixTest.Dstar.SSETest do
+defmodule PhoenixTestDatastar.SSETest do
   use ExUnit.Case, async: true
 
-  alias PhoenixTest.Dstar.SSE
+  alias PhoenixTestDatastar.SSE
 
   describe "parse/1" do
     test "parses a single patch_signals event" do

@@ -72,7 +72,9 @@ defmodule PhoenixTestDatastar.ActionsTest do
     end
 
     test "handles action with dynamic URL expression" do
-      expression = "@post('/ds/' + $_dstar_module + '/increment', {headers: {'x-csrf-token': $_csrfToken}})"
+      expression =
+        "@post('/ds/' + $_dstar_module + '/increment', {headers: {'x-csrf-token': $_csrfToken}})"
+
       assert {:ok, [action]} = Actions.parse(expression)
       assert action.method == :post
       # Without signal resolution, dynamic parts are empty
@@ -327,7 +329,9 @@ defmodule PhoenixTestDatastar.ActionsTest do
     end
 
     test "handles action with path params and headers" do
-      expression = "@post('/ds/my_app-counter/increment', {headers: {'x-csrf-token': $_csrfToken}})"
+      expression =
+        "@post('/ds/my_app-counter/increment', {headers: {'x-csrf-token': $_csrfToken}})"
+
       assert {:ok, [action]} = Actions.parse(expression)
       assert action.method == :post
       assert action.url == "/ds/my_app-counter/increment"
