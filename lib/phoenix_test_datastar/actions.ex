@@ -21,6 +21,14 @@ defmodule PhoenixTestDatastar.Actions do
           raw_url: String.t()
         }
 
+  # Matches the `location.pathname` token emitted by dstar's page-local
+  # helpers (Dstar.Page.Helpers, dstar >= 0.1.0-alpha.2), with an optional
+  # trailing-slash-stripping `.replace(/\/+$/, '')` chain:
+  #
+  #   event("wire_check") #=> "@post(location.pathname.replace(/\/+$/, '') + '/_event/wire_check')"
+  #   connect()           #=> "@post(location.pathname, {retryMaxCount: Infinity})"
+  @location_pathname_regex ~r{location\.pathname(\.replace\(/\\/\+\$/,\s*''\))?}
+
   @doc """
   Parse an action expression string into a list of actions.
 
@@ -93,6 +101,14 @@ defmodule PhoenixTestDatastar.Actions do
   @doc """
   Resolve dynamic URL expressions by replacing $signal references with values.
 
+  An optional `current_path` (the session's current path) resolves the
+  `location.pathname` token emitted by dstar's page-local helpers
+  (`Dstar.Page.Helpers.event/2` and `connect/1` in dstar >= 0.1.0-alpha.2).
+  A chained `.replace(/\\/+$/, '')` strips trailing slashes from the current
+  path, mirroring what the Datastar JS client computes in the browser. Any
+  query string or fragment in `current_path` is ignored, like
+  `location.pathname` in the browser.
+
   ## Examples
 
       iex> PhoenixTestDatastar.Actions.resolve_url("'/ds/counter/increment'", %{})
@@ -103,11 +119,20 @@ defmodule PhoenixTestDatastar.Actions do
 
       iex> PhoenixTestDatastar.Actions.resolve_url("'/prefix/' + $mySignal + '/suffix'", %{"mySignal" => "value"})
       "/prefix/value/suffix"
+
+      iex> PhoenixTestDatastar.Actions.resolve_url("location.pathname", %{}, "/chrismccord")
+      "/chrismccord"
   """
-  @spec resolve_url(String.t(), map()) :: String.t()
-  def resolve_url(url_expression, signals) when is_binary(url_expression) and is_map(signals) do
+  @spec resolve_url(String.t(), map(), String.t() | nil) :: String.t()
+  def resolve_url(url_expression, signals, current_path \\ nil)
+
+  def resolve_url(url_expression, signals, current_path)
+      when is_binary(url_expression) and is_map(signals) do
     # Remove outer quotes if present and trim
-    url_expression = String.trim(url_expression)
+    url_expression =
+      url_expression
+      |> String.trim()
+      |> substitute_location_pathname(current_path)
 
     # Check if it's a simple static string
     if String.match?(url_expression, ~r/^'[^']*'$/) do
@@ -242,8 +267,7 @@ defmodule PhoenixTestDatastar.Actions do
     url_part =
       url_part
       |> String.trim()
-      |> String.split(",")
-      |> List.first()
+      |> strip_options_object()
       |> String.trim()
 
     # The raw URL is what we got
@@ -253,5 +277,40 @@ defmodule PhoenixTestDatastar.Actions do
     resolved_url = resolve_url(url_part, %{})
 
     {raw_url, resolved_url}
+  end
+
+  # Drops a trailing `, {...}` options object (headers, retryMaxCount, ...)
+  # without splitting on commas that belong to the URL expression itself,
+  # such as the one inside `location.pathname.replace(/\/+$/, '')`.
+  defp strip_options_object(url_part) do
+    Regex.replace(~r/,\s*\{.*\}\s*$/s, url_part, "")
+  end
+
+  # Replaces the `location.pathname` token (optionally chained with
+  # `.replace(/\/+$/, '')`) with the session's current path as a quoted
+  # string literal, so the rest of the expression resolves as usual.
+  defp substitute_location_pathname(url_expression, current_path) do
+    Regex.replace(@location_pathname_regex, url_expression, fn _match, replace_chain ->
+      pathname = current_pathname(current_path)
+
+      resolved =
+        if replace_chain == "" do
+          pathname
+        else
+          # Mirror the client-side `.replace(/\/+$/, '')`
+          String.replace(pathname, ~r{/+$}, "")
+        end
+
+      "'" <> resolved <> "'"
+    end)
+  end
+
+  # `location.pathname` never includes the query string or fragment.
+  defp current_pathname(nil), do: ""
+
+  defp current_pathname(current_path) when is_binary(current_path) do
+    current_path
+    |> String.split(["?", "#"], parts: 2)
+    |> List.first()
   end
 end

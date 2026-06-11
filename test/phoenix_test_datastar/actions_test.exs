@@ -147,6 +147,103 @@ defmodule PhoenixTestDatastar.ActionsTest do
     end
   end
 
+  # URL expressions emitted by dstar >= 0.1.0-alpha.2 page helpers
+  # (Dstar.Page.Helpers.event/2 and connect/1):
+  #
+  #   event("wire_check") #=> "@post(location.pathname.replace(/\/+$/, '') + '/_event/wire_check')"
+  #   connect()           #=> "@post(location.pathname, {retryMaxCount: Infinity})"
+  describe "resolve_url/3 with location.pathname (dstar page helpers)" do
+    @event_raw_url "location.pathname.replace(/\\/+$/, '') + '/_event/wire_check'"
+
+    test "resolves event() URL against the current path" do
+      assert Actions.resolve_url(@event_raw_url, %{}, "/signin") ==
+               "/signin/_event/wire_check"
+    end
+
+    test "strips trailing slashes from the current path when replace-chain is present" do
+      assert Actions.resolve_url(@event_raw_url, %{}, "/signin/") ==
+               "/signin/_event/wire_check"
+    end
+
+    test "resolves event() URL at the root path" do
+      assert Actions.resolve_url(@event_raw_url, %{}, "/") == "/_event/wire_check"
+    end
+
+    test "resolves bare location.pathname (connect() case)" do
+      assert Actions.resolve_url("location.pathname", %{}, "/chrismccord") == "/chrismccord"
+    end
+
+    test "bare location.pathname keeps a trailing slash (no replace-chain)" do
+      assert Actions.resolve_url("location.pathname", %{}, "/chrismccord/") == "/chrismccord/"
+    end
+
+    test "ignores query string in the session current path" do
+      assert Actions.resolve_url(@event_raw_url, %{}, "/signin?next=%2Fhome") ==
+               "/signin/_event/wire_check"
+
+      assert Actions.resolve_url("location.pathname", %{}, "/chrismccord?tab=songs") ==
+               "/chrismccord"
+    end
+
+    test "resolve_url/2 (no current path) still resolves literals and signals" do
+      assert Actions.resolve_url("'/ds/counter/increment'", %{}) == "/ds/counter/increment"
+
+      assert Actions.resolve_url("'/ds/' + $_dstar_module + '/inc'", %{
+               "_dstar_module" => "counter"
+             }) == "/ds/counter/inc"
+    end
+  end
+
+  describe "parse with location.pathname URLs (dstar page helpers)" do
+    test "parses event(\"wire_check\") expression without mangling the replace call" do
+      expression = "@post(location.pathname.replace(/\\/+$/, '') + '/_event/wire_check')"
+
+      assert {:ok, [action]} = Actions.parse(expression)
+      assert action.method == :post
+      assert action.raw_url == "location.pathname.replace(/\\/+$/, '') + '/_event/wire_check'"
+    end
+
+    test "parses event(\"remove\", verb: :delete) expression" do
+      expression = "@delete(location.pathname.replace(/\\/+$/, '') + '/_event/remove')"
+
+      assert {:ok, [action]} = Actions.parse(expression)
+      assert action.method == :delete
+      assert action.raw_url == "location.pathname.replace(/\\/+$/, '') + '/_event/remove'"
+    end
+
+    test "parses connect() expression, dropping the options object" do
+      expression = "@post(location.pathname, {retryMaxCount: Infinity})"
+
+      assert {:ok, [action]} = Actions.parse(expression)
+      assert action.method == :post
+      assert action.raw_url == "location.pathname"
+    end
+
+    test "parses event() expression with an options object after the URL" do
+      expression =
+        "@post(location.pathname.replace(/\\/+$/, '') + '/_event/wire_check', {retryMaxCount: 5})"
+
+      assert {:ok, [action]} = Actions.parse(expression)
+      assert action.method == :post
+      assert action.raw_url == "location.pathname.replace(/\\/+$/, '') + '/_event/wire_check'"
+    end
+
+    test "full workflow: find, parse, resolve against current path" do
+      html = """
+      <button id="wire-btn"
+        data-on:click="@post(location.pathname.replace(/\\/+$/, '') + '/_event/wire_check')">
+        Wire Check
+      </button>
+      """
+
+      assert {:ok, expression} = Actions.find_action(html, "#wire-btn")
+      assert {:ok, [action]} = Actions.parse(expression)
+
+      assert Actions.resolve_url(action.raw_url, %{}, "/signin") ==
+               "/signin/_event/wire_check"
+    end
+  end
+
   describe "find_action/2" do
     test "finds data-on:click action" do
       html = """

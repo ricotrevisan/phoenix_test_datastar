@@ -216,6 +216,64 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
     """)
   end
 
+  # Page using dstar >= 0.1.0-alpha.2 page-local helper output:
+  # Dstar.Page.Helpers.event("wire_check")
+  def wire(conn, _params) do
+    html(conn, """
+    <!DOCTYPE html>
+    <html>
+    <head><title>Wire</title></head>
+    <body>
+      <div id="app"
+        data-signals:wired="false"
+        data-signals:_csrf-token="'test-csrf-token'">
+
+        <span id="wired">false</span>
+
+        <button id="wire-btn"
+          data-on:click="@post(location.pathname.replace(/\\/+$/, '') + '/_event/wire_check')">
+          Wire Check
+        </button>
+      </div>
+    </body>
+    </html>
+    """)
+  end
+
+  def wire_event(conn, _params) do
+    conn
+    |> Dstar.start()
+    |> Dstar.patch_signals(%{wired: true})
+    |> Dstar.patch_elements(~s(<span id="wired">true</span>), selector: "#wired")
+  end
+
+  # Page using dstar >= 0.1.0-alpha.2 page-local helper output:
+  # Dstar.Page.Helpers.connect()
+  def connect_page(conn, _params) do
+    html(conn, """
+    <!DOCTYPE html>
+    <html>
+    <head><title>Connect</title></head>
+    <body>
+      <div id="app"
+        data-signals:status="'disconnected'"
+        data-signals:_csrf-token="'test-csrf-token'"
+        data-init="@post(location.pathname, {retryMaxCount: Infinity})">
+
+        <span id="status">disconnected</span>
+      </div>
+    </body>
+    </html>
+    """)
+  end
+
+  def connect_stream(conn, _params) do
+    conn
+    |> Dstar.start()
+    |> Dstar.patch_signals(%{status: "connected"})
+    |> Dstar.patch_elements(~s(<span id="status">connected</span>), selector: "#status")
+  end
+
   def nested_signals(conn, _params) do
     html(conn, """
     <!DOCTYPE html>

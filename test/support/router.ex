@@ -19,6 +19,12 @@ defmodule PhoenixTestDatastar.TestRouter do
     get("/data-init", PageController, :data_init)
     get("/nested-signals", PageController, :nested_signals)
     get("/stream", PageController, :stream)
+
+    # Page-local event routes (dstar >= 0.1.0-alpha.2 page helpers)
+    get("/wire", PageController, :wire)
+    post("/wire/_event/wire_check", PageController, :wire_event)
+    get("/connect-page", PageController, :connect_page)
+    post("/connect-page", PageController, :connect_stream)
   end
 
   # Dstar dispatch route — handles all Datastar SSE requests
