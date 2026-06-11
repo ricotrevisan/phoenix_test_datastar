@@ -35,7 +35,7 @@ defmodule PhoenixTestDatastar.MixProject do
 
   defp deps do
     [
-      {:phoenix_test, "~> 0.10"},
+      {:phoenix_test, "~> 0.11"},
       {:phoenix, "~> 1.7"},
       {:plug, "~> 1.15"},
       {:jason, "~> 1.4"},
