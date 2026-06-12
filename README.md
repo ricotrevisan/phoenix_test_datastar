@@ -75,7 +75,7 @@ Add `phoenix_test_datastar` to your test dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:phoenix_test_datastar, "~> 0.0.1", only: :test, runtime: false}
+    {:phoenix_test_datastar, "~> 0.0.2", only: :test, runtime: false}
   ]
 end
 ```
