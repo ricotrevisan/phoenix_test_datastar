@@ -170,6 +170,12 @@ defmodule PhoenixTestDatastar.Dispatcher do
     end
   end
 
+  # Remove patches carry no elements — only a selector and mode remove.
+  defp apply_event(session, %{type: :patch_elements, elements: nil, mode: :remove} = event) do
+    raw_html = DOM.apply_patch(session.raw_html, event)
+    %{session | raw_html: raw_html}
+  end
+
   defp apply_event(session, %{type: :patch_elements, elements: nil}) do
     session
   end
