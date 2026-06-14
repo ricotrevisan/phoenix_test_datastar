@@ -353,7 +353,7 @@ Assertions query the in-memory DOM — no network round-trip needed.
 
 ## Supported PhoenixTest API
 
-PhoenixTestDatastar implements the full `PhoenixTest.Driver` protocol:
+PhoenixTestDatastar implements the full PhoenixTest driver protocol:
 
 | Function | Datastar behavior |
 |----------|-------------------|
