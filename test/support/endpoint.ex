@@ -2,6 +2,12 @@ defmodule PhoenixTestDatastar.TestEndpoint do
   @moduledoc false
   use Phoenix.Endpoint, otp_app: :phoenix_test_datastar
 
+  plug(Plug.Session,
+    store: :cookie,
+    key: "_phoenix_test_datastar_key",
+    signing_salt: "stream-tests"
+  )
+
   plug(Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],

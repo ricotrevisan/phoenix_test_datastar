@@ -4,6 +4,14 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
 
   plug(:put_layout, false)
 
+  def authenticate_stream(conn, _params) do
+    _csrf_token = Plug.CSRFProtection.get_csrf_token()
+
+    conn
+    |> Plug.Conn.put_session(:user_id, "test-user")
+    |> html("authenticated")
+  end
+
   def counter(conn, _params) do
     html(conn, """
     <!DOCTYPE html>
@@ -58,7 +66,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
           data-on:submit="#{Dstar.post(PhoenixTestDatastar.TestHandlers.FormHandler, "submit")}">
 
           <label for="name-input">Name</label>
-          <input id="name-input" type="text" name="name" data-bind="name" />
+          <input id="name-input" type="text" name="name" data-bind:name />
 
           <label for="email-input">Email</label>
           <input id="email-input" type="email" name="email" data-bind="email" />
@@ -106,7 +114,9 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
         <label for="password-input">Password</label>
         <input id="password-input" type="password" name="password" />
 
-        <button type="submit">Login</button>
+        <button type="submit"
+          data-attr:disabled="$_generating"
+          data-indicator="_generating">Login</button>
       </form>
     </body>
     </html>

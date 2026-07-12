@@ -2,6 +2,16 @@ defmodule PhoenixTestDatastar.Integration.FormTest do
   use PhoenixTestDatastar.DatastarCase, async: true
 
   describe "fill_in with data-bind" do
+    test "uses the attribute suffix for key-style data-bind", %{conn: conn} do
+      session =
+        conn
+        |> PhoenixTestDatastar.visit("/form")
+        |> fill_in("Name", with: "Alice")
+
+      assert_signal(session, "name", "Alice")
+      refute Map.has_key?(session.signals, "")
+    end
+
     test "updates signal when filling in data-bound input", %{conn: conn} do
       conn
       |> PhoenixTestDatastar.visit("/form")

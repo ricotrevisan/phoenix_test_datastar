@@ -1,10 +1,23 @@
 defmodule PhoenixTestDatastar.TestRouter do
   @moduledoc false
   use Phoenix.Router
+  import Dstar.Router
 
   pipeline :browser do
     plug(:accepts, ["html"])
     plug(:fetch_query_params)
+  end
+
+  pipeline :authenticated do
+    plug(:fetch_session)
+    plug(:protect_from_forgery)
+  end
+
+  scope "/", PhoenixTestDatastar.TestHandlers do
+    pipe_through([:browser, :authenticated])
+
+    get("/authenticate-stream", PageController, :authenticate_stream)
+    dstar("/authenticated-stream", StreamPage)
   end
 
   scope "/", PhoenixTestDatastar.TestHandlers do
