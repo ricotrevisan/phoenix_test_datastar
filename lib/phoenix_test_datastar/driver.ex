@@ -147,6 +147,8 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
         if Button.has_data_method?(button) do
           click_with_data_method(session, button)
         else
+          button = button_without_data_attributes(button)
+
           # Check if button belongs to a form
           if Button.belongs_to_form?(button, html) do
             form =
@@ -523,6 +525,22 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
 
   # ── data-bind helpers ──────────────────────────────────────────────────
 
+  defp button_without_data_attributes(%Button{id: id} = button) when is_binary(id), do: button
+
+  defp button_without_data_attributes(%Button{} = button) do
+    parsed =
+      Html.postwalk(button.parsed, fn
+        {tag, attrs, children} ->
+          attrs = Enum.reject(attrs, fn {name, _value} -> String.starts_with?(name, "data-") end)
+          {tag, attrs, children}
+
+        node ->
+          node
+      end)
+
+    Button.build(parsed)
+  end
+
   defp find_data_bind(raw_html, field) do
     # Look for data-bind or data-bind:* attribute on the input element
     # We search in raw HTML via Floki since LazyHTML doesn't expose data-bind easily
@@ -542,13 +560,8 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
           {"data-bind", signal_name} when signal_name != "" ->
             signal_name
 
-          {attr_name, signal_name} ->
-            if String.starts_with?(attr_name, "data-bind:") do
-              # data-bind:value="signalName" or just data-bind:signalName
-              signal_name
-            else
-              nil
-            end
+          {"data-bind:" <> signal_name, _value} when signal_name != "" ->
+            Signals.kebab_to_camel(signal_name)
 
           _ ->
             nil

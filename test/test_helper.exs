@@ -6,6 +6,15 @@ Application.put_env(:phoenix_test_datastar, PhoenixTestDatastar.TestEndpoint,
 
 Application.put_env(:phoenix_test, :endpoint, PhoenixTestDatastar.TestEndpoint)
 
+{:ok, _} =
+  Registry.start_link(keys: :unique, name: Dstar.Utility.StreamRegistry)
+
+{:ok, _} =
+  Supervisor.start_link(
+    [{Phoenix.PubSub, name: PhoenixTestDatastar.TestPubSub}],
+    strategy: :one_for_one
+  )
+
 {:ok, _} = PhoenixTestDatastar.TestEndpoint.start_link()
 
 ExUnit.start()

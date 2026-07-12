@@ -63,6 +63,8 @@ defmodule PhoenixTestDatastar.Stream do
         end
       end)
 
+    Process.unlink(task.pid)
+
     # Wait for the stream to start
     receive do
       {:stream_started, ^ref, _status, _headers} ->
@@ -149,9 +151,18 @@ defmodule PhoenixTestDatastar.Stream do
   def stream_open?(%Session{} = session) do
     case get_stream_info(session) do
       nil -> false
-      {_task, _ref} -> true
+      {task, _ref} -> Process.alive?(task.pid)
     end
   end
+
+  @doc """
+  Returns the task and stream reference associated with the session.
+
+  Returns `nil` when the session has not opened a stream or after the stream
+  has been explicitly closed.
+  """
+  @spec stream_info(%Session{}) :: {Task.t(), reference()} | nil
+  def stream_info(%Session{} = session), do: get_stream_info(session)
 
   # ── Private helpers ────────────────────────────────────────────────────
 
@@ -220,20 +231,36 @@ defmodule PhoenixTestDatastar.Stream do
         headers
       end
 
-    # Carry over cookies from the session conn (for auth, CSRF, etc.)
-    cookie_headers = resp_cookies_to_req_headers(session.conn)
+    # Carry over the effective cookie jar (for auth, CSRF, etc.). Existing
+    # request cookies remain active unless the latest response replaces them.
+    cookie_headers = cookies_to_req_headers(session.conn)
     cookie_headers ++ headers
   end
 
-  defp resp_cookies_to_req_headers(conn) do
-    cookies =
+  defp cookies_to_req_headers(conn) do
+    request_cookies =
+      for {"cookie", header} <- conn.req_headers,
+          cookie <- String.split(header, ";", trim: true),
+          do: cookie
+
+    response_cookies =
       for {"set-cookie", header} <- conn.resp_headers,
           [cookie | _] = String.split(header, ";"),
           do: cookie
 
-    case cookies do
-      [] -> []
-      _ -> [{"cookie", Enum.join(cookies, "; ")}]
+    cookies =
+      Enum.reduce(request_cookies ++ response_cookies, %{}, fn cookie, acc ->
+        case String.split(cookie, "=", parts: 2) do
+          [name, value] -> Map.put(acc, String.trim(name), String.trim(value))
+          _ -> acc
+        end
+      end)
+
+    if map_size(cookies) == 0 do
+      []
+    else
+      header = Enum.map_join(cookies, "; ", fn {name, value} -> "#{name}=#{value}" end)
+      [{"cookie", header}]
     end
   end
 

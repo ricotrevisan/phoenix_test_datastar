@@ -53,4 +53,16 @@ defmodule PhoenixTestDatastar.Integration.ClickTest do
       |> assert_has("#status", text: "active")
     end
   end
+
+  describe "click_button with Datastar attributes" do
+    test "submits an id-less button without using data attributes in its form selector", %{
+      conn: conn
+    } do
+      conn
+      |> PhoenixTestDatastar.visit("/standard-form")
+      |> fill_in("Username", with: "alice")
+      |> click_button("Login")
+      |> assert_has("h1", text: "You were redirected!")
+    end
+  end
 end
