@@ -66,7 +66,9 @@ defmodule PhoenixTestDatastar.Dispatcher do
 
     path =
       if query != "" and query != "datastar=%7B%7D" do
-        url <> "?" <> query
+        # `connect(include_search: true)` URLs already carry a query string
+        separator = if String.contains?(url, "?"), do: "&", else: "?"
+        url <> separator <> query
       else
         url
       end

@@ -38,6 +38,22 @@ defmodule PhoenixTestDatastar.TestRouter do
     post("/wire/_event/wire_check", PageController, :wire_event)
     get("/connect-page", PageController, :connect_page)
     post("/connect-page", PageController, :connect_stream)
+    get("/connect-search", PageController, :connect_search_page)
+    post("/connect-search", PageController, :connect_search_stream)
+
+    # dstar >= 0.3 component and module-form action URLs
+    get("/component", PageController, :component)
+    get("/:workspace/component", PageController, :component)
+    get("/dynamic", PageController, :dynamic)
+  end
+
+  # Component dispatch under a workspace base (`<body data-ds-base="/acme/ds">`)
+  # and module actions rendered with `prefix: "/acme"`.
+  scope "/acme" do
+    dstar_components("/ds", [
+      PhoenixTestDatastar.TestHandlers.WidgetComponent,
+      PhoenixTestDatastar.TestHandlers.CounterHandler
+    ])
   end
 
   # Dstar dispatch route — handles all Datastar SSE requests
@@ -48,7 +64,8 @@ defmodule PhoenixTestDatastar.TestRouter do
         PhoenixTestDatastar.TestHandlers.FormHandler,
         PhoenixTestDatastar.TestHandlers.RedirectHandler,
         PhoenixTestDatastar.TestHandlers.InitHandler,
-        PhoenixTestDatastar.TestHandlers.MultiHandler
+        PhoenixTestDatastar.TestHandlers.MultiHandler,
+        PhoenixTestDatastar.TestHandlers.WidgetComponent
       ]
     )
 
