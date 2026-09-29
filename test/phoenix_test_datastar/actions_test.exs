@@ -572,4 +572,37 @@ defmodule PhoenixTestDatastar.ActionsTest do
       end
     end
   end
+
+  # `confirm('...') && @action(...)` guards: tests accept the dialog.
+  describe "confirm() guards" do
+    test "dispatch the guarded @post" do
+      expression =
+        "confirm('Remove this app? You can re-add it later.') && " <>
+          Dstar.Page.Helpers.event("revoke_app:42")
+
+      assert {:ok, [action]} = Actions.parse(expression)
+      assert action.method == :post
+      assert Actions.resolve_url(action.raw_url, %{}, "/apps") == "/apps/_event/revoke_app%3A42"
+    end
+
+    test "dispatch the guarded @get" do
+      assert {:ok, [action]} =
+               Actions.parse(~s|confirm("Load (all) items; ok && go?") && @get("/items")|)
+
+      assert action.method == :get
+      assert action.url == "/items"
+    end
+
+    test "accept legacy single-quoted actions and chained guards" do
+      assert {:ok, %{method: :delete, url: "/ds/x/remove"}} =
+               Actions.parse_one(
+                 "confirm('Sure?') && confirm('Really?') && @delete('/ds/x/remove')"
+               )
+    end
+
+    test "reject guards other than confirm()" do
+      assert {:error, _} = Actions.parse_one("$enabled && @post('/x')")
+      assert {:error, _} = Actions.parse_one("confirm('Sure?') && alert('no')")
+    end
+  end
 end
