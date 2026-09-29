@@ -97,6 +97,9 @@ defmodule PhoenixTestDatastar.Actions do
   The `url` is resolved without signals or a current path; use
   `resolve_url/4` with the session state to get the request path.
 
+  Leading `confirm(...) &&` guards are treated as accepted: the guarded
+  action is returned.
+
   ## Examples
 
       iex> PhoenixTestDatastar.Actions.parse_one("@post('/path')")
@@ -107,12 +110,16 @@ defmodule PhoenixTestDatastar.Actions do
 
       iex> PhoenixTestDatastar.Actions.parse_one("@get('/ds/items/load')")
       {:ok, %{method: :get, url: "/ds/items/load", raw_url: "'/ds/items/load'"}}
+
+      iex> PhoenixTestDatastar.Actions.parse_one("confirm('Sure?') && @post('/ds/items/remove')")
+      {:ok, %{method: :post, url: "/ds/items/remove", raw_url: "'/ds/items/remove'"}}
   """
   @spec parse_one(String.t()) :: {:ok, action()} | {:error, term()}
   def parse_one(expression) when is_binary(expression) do
     {masked, tokens} = mask(String.trim(expression))
 
-    with [_, method_str, args] <- Regex.run(@verb_regex, masked),
+    with {:ok, masked} <- strip_confirm_guards(masked),
+         [_, method_str, args] <- Regex.run(@verb_regex, masked),
          [url_part | _options] <- split_top_level(args, [?,]),
          url_part when url_part != "" <- String.trim(url_part) do
       raw_url = unmask(url_part, tokens)
@@ -441,6 +448,21 @@ defmodule PhoenixTestDatastar.Actions do
   end
 
   # ── Expression scanning ─────────────────────────────────────────────
+
+  # `confirm('...') && @post(...)`: a test always accepts the dialog, so drop
+  # the guards and keep the action. Any other guard is rejected.
+  defp strip_confirm_guards(masked) do
+    {guards, [action]} =
+      masked
+      |> split_top_level([?&])
+      |> Enum.map(&String.trim/1)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.split(-1)
+
+    if Enum.all?(guards, &Regex.match?(~r/\Aconfirm\(.*\)\z/s, &1)),
+      do: {:ok, action},
+      else: :error
+  end
 
   # Replaces every known dstar fragment with an opaque placeholder token.
   # Returns the masked expression and a map of placeholder => token.

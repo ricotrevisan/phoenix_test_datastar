@@ -23,6 +23,9 @@ The dstar 0.1/0.2 URL shapes still work.
   URLs the browser would reject (an invalid `data-ds-base`, or an empty or dot
   `$_dstar_module`). It used to dispatch the unresolved JavaScript as the
   request path.
+- `confirm('...') && @action(...)` guards are treated as accepted and the
+  action is dispatched, as in 0.0.2. Guards other than `confirm()` are now an
+  invalid action expression.
 - GET actions whose URL already has a query string (`connect(include_search: true)`)
   append the `datastar` query parameter with `&`.
 

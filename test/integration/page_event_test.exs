@@ -12,6 +12,13 @@ defmodule PhoenixTestDatastar.Integration.PageEventTest do
       |> assert_has("#wired", text: "true")
     end
 
+    test "a confirm() guard is accepted and the action dispatched", %{conn: conn} do
+      conn
+      |> PhoenixTestDatastar.visit("/wire")
+      |> click_button("Guarded Wiring")
+      |> assert_signal("wired", true)
+    end
+
     test "trailing slash in the visited path is stripped", %{conn: conn} do
       conn
       |> PhoenixTestDatastar.visit("/wire/")

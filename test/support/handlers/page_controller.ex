@@ -243,6 +243,11 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
           data-on:click="#{attr(Dstar.Page.Helpers.event("wire_check"))}">
           Wire Check
         </button>
+
+        <button id="confirm-wire-btn"
+          data-on:click="#{attr("confirm('Wire it?') && " <> Dstar.Page.Helpers.event("wire_check"))}">
+          Guarded Wiring
+        </button>
       </div>
     </body>
     </html>
