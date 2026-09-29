@@ -147,7 +147,7 @@ defmodule PhoenixTestDatastar.ActionsTest do
     end
   end
 
-  # URL expressions emitted by dstar >= 0.1.0-alpha.2 page helpers
+  # Legacy URL expressions emitted by dstar 0.1/0.2 page helpers
   # (Dstar.Page.Helpers.event/2 and connect/1):
   #
   #   event("wire_check") #=> "@post(location.pathname.replace(/\/+$/, '') + '/_event/wire_check')"
@@ -194,7 +194,7 @@ defmodule PhoenixTestDatastar.ActionsTest do
     end
   end
 
-  describe "parse with location.pathname URLs (dstar page helpers)" do
+  describe "parse with location.pathname URLs (dstar 0.1/0.2 page helpers)" do
     test "parses event(\"wire_check\") expression without mangling the replace call" do
       expression = "@post(location.pathname.replace(/\\/+$/, '') + '/_event/wire_check')"
 
@@ -432,6 +432,144 @@ defmodule PhoenixTestDatastar.ActionsTest do
       assert {:ok, [action]} = Actions.parse(expression)
       assert action.method == :post
       assert action.url == "/ds/my_app-counter/increment"
+    end
+  end
+
+  # Expressions rendered by the dstar test dependency itself, so these
+  # break loudly if dstar changes its URL shapes again.
+  describe "dstar >= 0.3 action URLs" do
+    alias PhoenixTestDatastar.TestHandlers.{CounterHandler, WidgetComponent}
+
+    @counter "phoenix_test_datastar-test_handlers-counter_handler"
+    @widget "phoenix_test_datastar-test_handlers-widget_component"
+
+    defp resolve(expression, signals \\ %{}, current_path \\ nil, opts \\ []) do
+      assert {:ok, [action]} = Actions.parse(expression)
+      {action.method, Actions.resolve_url(action.raw_url, signals, current_path, opts)}
+    end
+
+    test "Dstar.Page.Helpers.event/2 resolves against the current path" do
+      expression = Dstar.Page.Helpers.event("save")
+
+      assert resolve(expression, %{}, "/posts/42") == {:post, "/posts/42/_event/save"}
+      assert resolve(expression, %{}, "/posts/42/?tab=a") == {:post, "/posts/42/_event/save"}
+      assert resolve(expression, %{}, "//posts//") == {:post, "/posts/_event/save"}
+      assert resolve(expression, %{}, "/") == {:post, "/_event/save"}
+    end
+
+    test "Dstar.Page.Helpers.event/2 percent-encodes the event and honours :verb" do
+      expression = Dstar.Page.Helpers.event("remove item/1.(x)", verb: :delete)
+
+      assert resolve(expression, %{}, "/items") ==
+               {:delete, "/items/_event/remove%20item%2F1%2E%28x%29"}
+    end
+
+    test "Dstar.Page.Helpers.event/2 with :opts keeps only the URL" do
+      expression = Dstar.Page.Helpers.event("save", opts: "{contentType: 'form'}")
+      assert resolve(expression, %{}, "/posts") == {:post, "/posts/_event/save"}
+    end
+
+    test "Dstar.Page.Helpers.connect/0 posts to the current path without the query" do
+      expression = Dstar.Page.Helpers.connect()
+
+      assert resolve(expression, %{}, "/feed/?tab=a") == {:post, "/feed/"}
+      assert resolve(expression, %{}, "//feed") == {:post, "/feed"}
+    end
+
+    test "Dstar.Page.Helpers.connect(include_search: true) keeps the query" do
+      expression = Dstar.Page.Helpers.connect(include_search: true)
+
+      assert resolve(expression, %{}, "/feed?tab=a&page=2#top") == {:post, "/feed?tab=a&page=2"}
+      assert resolve(expression, %{}, "/feed?") == {:post, "/feed"}
+      assert resolve(expression, %{}, "/feed") == {:post, "/feed"}
+    end
+
+    test "Dstar.Actions module form" do
+      assert resolve(Dstar.Actions.post(CounterHandler, "increment")) ==
+               {:post, "/ds/#{@counter}/increment"}
+
+      assert resolve(Dstar.Actions.get(CounterHandler, "a.b!")) ==
+               {:get, "/ds/#{@counter}/a%2Eb%21"}
+    end
+
+    test "Dstar.Actions module form with :prefix" do
+      assert resolve(Dstar.Actions.put(CounterHandler, "save", prefix: "/acme/")) ==
+               {:put, "/acme/ds/#{@counter}/save"}
+    end
+
+    test "Dstar.Actions dynamic module reads and encodes $_dstar_module" do
+      expression = Dstar.Actions.post("increment")
+
+      assert resolve(expression, %{"_dstar_module" => @counter}) ==
+               {:post, "/ds/#{@counter}/increment"}
+
+      assert resolve(expression, %{"_dstar_module" => "my app.x"}) ==
+               {:post, "/ds/my%20app%2Ex/increment"}
+    end
+
+    test "Dstar.Actions dynamic module rejects values the browser rejects" do
+      expression = Dstar.Actions.post("increment")
+
+      for invalid <- [%{}, %{"_dstar_module" => ""}, %{"_dstar_module" => ".."}] do
+        assert_raise ArgumentError, ~r/invalid Dstar module segment/, fn ->
+          resolve(expression, invalid)
+        end
+      end
+    end
+
+    test "Dstar.Actions dynamic form with a literal :module" do
+      assert resolve(Dstar.Actions.delete("remove", module: @counter)) ==
+               {:delete, "/ds/#{@counter}/remove"}
+    end
+
+    test "Dstar.Component event/2 uses the default /ds base" do
+      assert resolve(WidgetComponent.event("ping!")) == {:post, "/ds/#{@widget}/ping%21"}
+    end
+
+    test "Dstar.Component event/2 uses <body data-ds-base>" do
+      expression = WidgetComponent.event("ping!", verb: :patch)
+
+      assert resolve(expression, %{}, "/", ds_base: "/acme/ds/") ==
+               {:patch, "/acme/ds/#{@widget}/ping%21"}
+    end
+
+    test "Dstar.Component event/2 rejects a base the browser rejects" do
+      for base <- ["acme/ds", "//evil.example/ds", "/acme/../ds", "/acme/%2e%2e/ds", "/ds?x"] do
+        assert_raise ArgumentError, ~r/invalid Dstar component base/, fn ->
+          resolve(WidgetComponent.event("ping"), %{}, "/", ds_base: base)
+        end
+      end
+    end
+
+    test "full workflow from rendered HTML" do
+      html = """
+      <body data-ds-base="/acme/ds">
+        <button id="btn" data-on:click="#{Plug.HTML.html_escape(WidgetComponent.event("ping"))}">
+          Ping
+        </button>
+      </body>
+      """
+
+      assert {:ok, expression} = Actions.find_action(html, "#btn")
+      ds_base = Actions.find_ds_base(html)
+
+      assert resolve(expression, %{}, "/", ds_base: ds_base) ==
+               {:post, "/acme/ds/#{@widget}/ping"}
+    end
+
+    test "multiple dstar actions split on top-level semicolons only" do
+      expression =
+        Dstar.Page.Helpers.event("a") <> "; " <> WidgetComponent.event("b")
+
+      assert {:ok, [first, second]} = Actions.parse(expression)
+      assert Actions.resolve_url(first.raw_url, %{}, "/p") == "/p/_event/a"
+      assert Actions.resolve_url(second.raw_url, %{}) == "/ds/#{@widget}/b"
+    end
+
+    test "unresolvable URL parts raise instead of dispatching garbage" do
+      assert_raise ArgumentError, ~r/cannot resolve Datastar action URL part/, fn ->
+        Actions.resolve_url("window.myUrl + '/x'", %{})
+      end
     end
   end
 end

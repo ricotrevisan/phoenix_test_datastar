@@ -428,11 +428,16 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
     # Use the first action (most common case)
     action = List.first(actions)
     # Resolve dynamic URLs with current signals and current path
-    resolved_url = Actions.resolve_url(action.raw_url, session.signals, session.current_path)
-    action = %{action | url: resolved_url}
+    action = %{action | url: resolve_action_url(session, action)}
 
     session = %{session | active_form: ActiveForm.new()}
     Dispatcher.dispatch_action(session, action)
+  end
+
+  defp resolve_action_url(session, action) do
+    Actions.resolve_url(action.raw_url, session.signals, session.current_path,
+      ds_base: Actions.find_ds_base(session.raw_html)
+    )
   end
 
   defp find_datastar_action_on_element(raw_html, parsed_element) do
@@ -644,10 +649,7 @@ defimpl PhoenixTest.Driver, for: PhoenixTestDatastar.Session do
       case Actions.parse(action_expr) do
         {:ok, actions} ->
           Enum.reduce(actions, acc, fn action, inner_acc ->
-            resolved_url =
-              Actions.resolve_url(action.raw_url, inner_acc.signals, inner_acc.current_path)
-
-            action = %{action | url: resolved_url}
+            action = %{action | url: resolve_action_url(inner_acc, action)}
             Dispatcher.dispatch_action(inner_acc, action)
           end)
 

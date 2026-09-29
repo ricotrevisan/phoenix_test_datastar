@@ -4,13 +4,13 @@ defmodule PhoenixTestDatastar.MixProject do
   def project do
     [
       app: :phoenix_test_datastar,
-      version: "0.0.2",
+      version: "0.0.3",
       elixir: "~> 1.15",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       package: package(),
-      docs: [main: "PhoenixTestDatastar", extras: ["README.md"]],
+      docs: [main: "PhoenixTestDatastar", extras: ["README.md", "CHANGELOG.md"]],
       name: "PhoenixTestDatastar",
       description: "A PhoenixTest driver for Dstar-powered Phoenix applications"
     ]
@@ -29,7 +29,7 @@ defmodule PhoenixTestDatastar.MixProject do
     [
       licenses: ["MIT"],
       links: %{"Hex" => "https://hex.pm/packages/phoenix_test_datastar"},
-      files: ~w(lib mix.exs README.md LICENSE)
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE)
     ]
   end
 
@@ -40,7 +40,10 @@ defmodule PhoenixTestDatastar.MixProject do
       {:plug, "~> 1.15"},
       {:jason, "~> 1.4"},
       {:floki, "~> 0.36"},
-      {:dstar, "~> 0.1.3", only: :test},
+      {:dstar,
+       git: "https://github.com/ricotrevisan/dstar",
+       ref: "f47a7c43291aeac1750fe47ed08e5fddec74ff54",
+       only: :test},
       {:ex_doc, "~> 0.30", only: :dev, runtime: false}
     ]
   end

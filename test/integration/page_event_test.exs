@@ -1,11 +1,8 @@
 defmodule PhoenixTestDatastar.Integration.PageEventTest do
   use PhoenixTestDatastar.DatastarCase, async: true
 
-  # Exercises URL expressions emitted by dstar >= 0.1.0-alpha.2 page-local
-  # helpers (Dstar.Page.Helpers):
-  #
-  #   event("wire_check") #=> "@post(location.pathname.replace(/\/+$/, '') + '/_event/wire_check')"
-  #   connect()           #=> "@post(location.pathname, {retryMaxCount: Infinity})"
+  # Pages render the real dstar helper output (Dstar.Page.Helpers,
+  # Dstar.Component, Dstar.Actions); see TestHandlers.PageController.
   describe "page-local event URLs" do
     test "click dispatches to current path + /_event/<name>", %{conn: conn} do
       conn
@@ -29,6 +26,47 @@ defmodule PhoenixTestDatastar.Integration.PageEventTest do
       |> PhoenixTestDatastar.visit("/connect-page")
       |> assert_signal("status", "connected")
       |> assert_has("#status", text: "connected")
+    end
+  end
+
+  describe "connect(include_search: true) data-init" do
+    test "posts to the current path including the query string", %{conn: conn} do
+      conn
+      |> PhoenixTestDatastar.visit("/connect-search?tab=songs")
+      |> assert_signal("status", "connected:songs")
+    end
+  end
+
+  describe "Dstar.Component actions" do
+    test "dispatch to the default /ds base with a percent-encoded event", %{conn: conn} do
+      conn
+      |> PhoenixTestDatastar.visit("/component")
+      |> click_button("Ping")
+      |> assert_signal("pinged", true)
+      |> assert_has("#pinged", text: "true")
+    end
+
+    test "dispatch to the <body data-ds-base> base", %{conn: conn} do
+      conn
+      |> PhoenixTestDatastar.visit("/acme/component")
+      |> click_button("Ping")
+      |> assert_signal("pinged", true)
+    end
+  end
+
+  describe "module-form actions" do
+    test "resolve a dynamic $_dstar_module segment", %{conn: conn} do
+      conn
+      |> PhoenixTestDatastar.visit("/dynamic")
+      |> click_button("Dynamic Increment")
+      |> assert_signal("count", 1)
+    end
+
+    test "honour :prefix", %{conn: conn} do
+      conn
+      |> PhoenixTestDatastar.visit("/dynamic")
+      |> click_button("Prefixed Increment")
+      |> assert_signal("count", 1)
     end
   end
 end

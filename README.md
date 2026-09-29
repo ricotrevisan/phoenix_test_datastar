@@ -75,7 +75,7 @@ Add `phoenix_test_datastar` to your test dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:phoenix_test_datastar, "~> 0.0.2", only: :test, runtime: false}
+    {:phoenix_test_datastar, "~> 0.0.3", only: :test, runtime: false}
   ]
 end
 ```
@@ -396,6 +396,27 @@ PhoenixTestDatastar implements the full PhoenixTest driver protocol:
 - [phoenix](https://hex.pm/packages/phoenix) — ConnTest dispatching
 - [floki](https://hex.pm/packages/floki) — DOM parsing and patching
 - [jason](https://hex.pm/packages/jason) — JSON encoding/decoding
+
+### Dstar compatibility
+
+Action URLs are resolved the way the Datastar client resolves them in the
+browser, including the expressions dstar renders:
+
+| dstar helper | Resolved against |
+|--------------|------------------|
+| `Dstar.post(Module, "event")`, `prefix:` | Literal `/ds/...` path |
+| `Dstar.post("event")` (dynamic module) | The `_dstar_module` signal, percent-encoded like dstar does |
+| `Dstar.Page.Helpers.event/2` | The session's current path + `/_event/<event>` |
+| `Dstar.Page.Helpers.connect/1` (`include_search:`) | The session's current path (and query string) |
+| `Dstar.Component` `event/2` | `<body data-ds-base>`, defaulting to `/ds` |
+
+Both the dstar 0.3 URL shapes (double-quoted, percent-encoded literals) and the
+older 0.1/0.2 shapes are supported. A URL expression the driver can't resolve
+raises an `ArgumentError` rather than dispatching a garbage path.
+
+If you interpolate dstar helpers into hand-written HTML strings, HTML-escape
+them: dstar 0.3 renders double-quoted JavaScript literals, which break an
+unescaped `data-on:click="..."` attribute. HEEx does this for you.
 
 Dstar itself is **not** a dependency. The driver only understands the Datastar
 SSE wire format and HTML attribute conventions. This keeps the packages loosely

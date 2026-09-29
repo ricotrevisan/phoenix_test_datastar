@@ -27,17 +27,17 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
         <span id="count">0</span>
 
         <button id="increment-btn"
-          data-on:click="#{Dstar.post(PhoenixTestDatastar.TestHandlers.CounterHandler, "increment")}">
+          data-on:click="#{attr(Dstar.post(PhoenixTestDatastar.TestHandlers.CounterHandler, "increment"))}">
           Increment
         </button>
 
         <button id="decrement-btn"
-          data-on:click="#{Dstar.post(PhoenixTestDatastar.TestHandlers.CounterHandler, "decrement")}">
+          data-on:click="#{attr(Dstar.post(PhoenixTestDatastar.TestHandlers.CounterHandler, "decrement"))}">
           Decrement
         </button>
 
         <button id="increment-by-5-btn"
-          data-on:click="#{Dstar.post(PhoenixTestDatastar.TestHandlers.CounterHandler, "increment_by")}">
+          data-on:click="#{attr(Dstar.post(PhoenixTestDatastar.TestHandlers.CounterHandler, "increment_by"))}">
           Add 5
         </button>
       </div>
@@ -63,7 +63,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
         <h1>User Form</h1>
 
         <form id="user-form"
-          data-on:submit="#{Dstar.post(PhoenixTestDatastar.TestHandlers.FormHandler, "submit")}">
+          data-on:submit="#{attr(Dstar.post(PhoenixTestDatastar.TestHandlers.FormHandler, "submit"))}">
 
           <label for="name-input">Name</label>
           <input id="name-input" type="text" name="name" data-bind:name />
@@ -136,7 +136,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
 
         <a id="ds-link"
           href="#"
-          data-on:click="#{Dstar.post(PhoenixTestDatastar.TestHandlers.RedirectHandler, "go_counter")}">
+          data-on:click="#{attr(Dstar.post(PhoenixTestDatastar.TestHandlers.RedirectHandler, "go_counter"))}">
           Datastar Navigate
         </a>
 
@@ -180,7 +180,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
         <span id="status">idle</span>
 
         <button id="multi-btn"
-          data-on:click="#{Dstar.post(PhoenixTestDatastar.TestHandlers.MultiHandler, "update")}">
+          data-on:click="#{attr(Dstar.post(PhoenixTestDatastar.TestHandlers.MultiHandler, "update"))}">
           Update Both
         </button>
       </div>
@@ -198,7 +198,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
       <div id="app"
         data-signals:count="0"
         data-signals:_csrf-token="'test-csrf-token'"
-        data-init="#{Dstar.get(PhoenixTestDatastar.TestHandlers.InitHandler, "load")}">
+        data-init="#{attr(Dstar.get(PhoenixTestDatastar.TestHandlers.InitHandler, "load"))}">
 
         <span id="count">0</span>
       </div>
@@ -226,8 +226,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
     """)
   end
 
-  # Page using dstar >= 0.1.0-alpha.2 page-local helper output:
-  # Dstar.Page.Helpers.event("wire_check")
+  # Page-local event URL rendered by the real Dstar.Page.Helpers.event/2
   def wire(conn, _params) do
     html(conn, """
     <!DOCTYPE html>
@@ -241,7 +240,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
         <span id="wired">false</span>
 
         <button id="wire-btn"
-          data-on:click="@post(location.pathname.replace(/\\/+$/, '') + '/_event/wire_check')">
+          data-on:click="#{attr(Dstar.Page.Helpers.event("wire_check"))}">
           Wire Check
         </button>
       </div>
@@ -257,8 +256,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
     |> Dstar.patch_elements(~s(<span id="wired">true</span>), selector: "#wired")
   end
 
-  # Page using dstar >= 0.1.0-alpha.2 page-local helper output:
-  # Dstar.Page.Helpers.connect()
+  # Stream connect URL rendered by the real Dstar.Page.Helpers.connect/1
   def connect_page(conn, _params) do
     html(conn, """
     <!DOCTYPE html>
@@ -268,7 +266,7 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
       <div id="app"
         data-signals:status="'disconnected'"
         data-signals:_csrf-token="'test-csrf-token'"
-        data-init="@post(location.pathname, {retryMaxCount: Infinity})">
+        data-init="#{attr(Dstar.Page.Helpers.connect())}">
 
         <span id="status">disconnected</span>
       </div>
@@ -298,4 +296,80 @@ defmodule PhoenixTestDatastar.TestHandlers.PageController do
     </html>
     """)
   end
+
+  def connect_search_page(conn, _params) do
+    html(conn, """
+    <!DOCTYPE html>
+    <html>
+    <head><title>Connect with search</title></head>
+    <body>
+      <div id="app"
+        data-signals:status="'disconnected'"
+        data-init="#{attr(Dstar.Page.Helpers.connect(include_search: true))}">
+
+        <span id="status">disconnected</span>
+      </div>
+    </body>
+    </html>
+    """)
+  end
+
+  def connect_search_stream(conn, params) do
+    status = "connected:" <> Map.get(params, "tab", "none")
+
+    conn
+    |> Dstar.start()
+    |> Dstar.patch_signals(%{status: status})
+    |> Dstar.patch_elements(~s(<span id="status">#{status}</span>), selector: "#status")
+  end
+
+  # Dstar.Component action URL; `ds_base` becomes <body data-ds-base>.
+  def component(conn, params) do
+    body_attrs =
+      case params do
+        %{"workspace" => workspace} -> ~s( data-ds-base="#{attr("/" <> workspace <> "/ds")}")
+        _ -> ""
+      end
+
+    html(conn, """
+    <!DOCTYPE html>
+    <html>
+    <head><title>Component</title></head>
+    <body#{body_attrs}>
+      <div id="app" data-signals:pinged="false">
+        <span id="pinged">false</span>
+        <button data-on:click="#{attr(PhoenixTestDatastar.TestHandlers.WidgetComponent.event("ping!"))}">
+          Ping
+        </button>
+      </div>
+    </body>
+    </html>
+    """)
+  end
+
+  # Module-form actions with a dynamic `$_dstar_module` and with `:prefix`.
+  def dynamic(conn, _params) do
+    html(conn, """
+    <!DOCTYPE html>
+    <html>
+    <head><title>Dynamic</title></head>
+    <body>
+      <div id="app"
+        data-signals:count="0"
+        data-signals:_dstar_module="'phoenix_test_datastar-test_handlers-counter_handler'">
+
+        <span id="count">0</span>
+        <button data-on:click="#{attr(Dstar.post("increment"))}">Dynamic Increment</button>
+        <button data-on:click="#{attr(Dstar.post(PhoenixTestDatastar.TestHandlers.CounterHandler, "increment", prefix: "/acme"))}">
+          Prefixed Increment
+        </button>
+      </div>
+    </body>
+    </html>
+    """)
+  end
+
+  # dstar >= 0.3 renders double-quoted JS literals, so action expressions
+  # must be HTML-escaped inside double-quoted attributes.
+  defp attr(expression), do: expression |> Plug.HTML.html_escape()
 end

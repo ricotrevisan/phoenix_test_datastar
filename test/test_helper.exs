@@ -7,7 +7,7 @@ Application.put_env(:phoenix_test_datastar, PhoenixTestDatastar.TestEndpoint,
 Application.put_env(:phoenix_test, :endpoint, PhoenixTestDatastar.TestEndpoint)
 
 {:ok, _} =
-  Registry.start_link(keys: :unique, name: Dstar.Utility.StreamRegistry)
+  Dstar.Utility.StreamRegistry.start_link()
 
 {:ok, _} =
   Supervisor.start_link(
