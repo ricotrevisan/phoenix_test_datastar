@@ -40,7 +40,7 @@ defmodule PhoenixTestDatastar.MixProject do
       {:plug, "~> 1.15"},
       {:jason, "~> 1.4"},
       {:floki, "~> 0.36"},
-      {:dstar, git: "https://github.com/ricotrevisan/dstar", tag: "v0.3.0", only: :test},
+      {:dstar, "~> 0.3.0", only: :test},
       {:ex_doc, "~> 0.30", only: :dev, runtime: false}
     ]
   end
